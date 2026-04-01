@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>LSSU — Nursing Program (Demo)</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; background: #f8fafc; color: #1e293b; }
+    .hero {
+      background: linear-gradient(135deg, #003F6B, #005596);
+      color: white; text-align: center; padding: 80px 20px;
+    }
+    .hero h1 { font-size: 2.5rem; margin: 0 0 12px; }
+    .hero p  { opacity: 0.8; font-size: 1.1rem; max-width: 560px; margin: 0 auto; }
+    .cta {
+      display: inline-block; margin-top: 28px;
+      background: #C8992A; color: white; padding: 14px 32px;
+      border-radius: 8px; font-weight: 600; text-decoration: none;
+      transition: background 0.2s;
+    }
+    .cta:hover { background: #b8841f; }
+    section { max-width: 800px; margin: 60px auto; padding: 0 20px; }
+    h2 { color: #003F6B; }
+    ul li { margin-bottom: 8px; }
+  </style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>LSSU Nursing Program</h1>
+  <p>Clinical readiness from year one. Small cohorts. Faculty who are practitioners.
+     Near-100% placement rates.</p>
+  <a href="#" class="cta">Apply Now at lssu.edu</a>
+</div>
+
+<section>
+  <h2>Why LSSU Nursing?</h2>
+  <ul>
+    <li>Clinical placements integrated throughout the curriculum — not just senior year</li>
+    <li>Small clinical groups with individualized faculty oversight</li>
+    <li>One Rate Lake State eliminates out-of-state cost penalty</li>
+    <li>NCLEX preparation built into every semester</li>
+    <li>Near-100% placement rates within months of graduation</li>
+  </ul>
+  <p>Have questions? Our admissions guide <strong>Laker</strong> is live in the corner — ask anything!</p>
+</section>
+
+<!-- Chat widget — change data-page-slug to match the landing page -->
+<script
+  src="./laker-chat.js"
+  data-page-slug="icp-nursing-student-10"
+  data-api="http://localhost:8000"
+  data-referral="demo">
+</script>
+
+</body>
+</html>
