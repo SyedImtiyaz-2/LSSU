@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { api, Lead } from "@/lib/api";
-import { Download, Search } from "lucide-react";
+import { Download, Search, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 
 const ICP_COLORS: Record<string, string> = {
@@ -41,13 +41,27 @@ function SourceBadge({ source }: { source: string | null }) {
 }
 
 export default function LeadsPage() {
-  const [leads, setLeads]   = useState<Lead[]>([]);
-  const [query, setQuery]   = useState("");
-  const [loading, setLoading] = useState(true);
+  const [leads, setLeads]       = useState<Lead[]>([]);
+  const [query, setQuery]       = useState("");
+  const [loading, setLoading]   = useState(true);
+  const [deleteTarget, setDeleteTarget] = useState<Lead | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     api.leads().then((r) => setLeads(r.leads)).finally(() => setLoading(false));
   }, []);
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await api.deleteSession(deleteTarget.session_id);
+      setLeads((prev) => prev.filter((l) => l.session_id !== deleteTarget.session_id));
+      setDeleteTarget(null);
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const filtered = leads.filter((l) => {
     const q = query.toLowerCase();
@@ -110,6 +124,7 @@ export default function LeadsPage() {
                 <th className="px-4 py-3 text-left">ICP</th>
                 <th className="px-4 py-3 text-left">Source</th>
                 <th className="px-4 py-3 text-left">Date</th>
+                <th className="px-4 py-3 text-left"></th>
               </tr>
             </thead>
             <tbody>
@@ -123,17 +138,57 @@ export default function LeadsPage() {
                   <td className="px-4 py-3 text-gray-400 text-xs">
                     {l.created_at ? format(new Date(l.created_at), "MMM d, yyyy") : "—"}
                   </td>
+                  <td className="px-4 py-3">
+                    <button
+                      onClick={() => setDeleteTarget(l)}
+                      className="p-1.5 rounded-lg hover:bg-red-50 text-red-400 transition-colors"
+                      title="Delete lead"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </td>
                 </tr>
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="text-center text-gray-300 py-12">
+                  <td colSpan={7} className="text-center text-gray-300 py-12">
                     {query ? "No leads match your search." : "No leads captured yet."}
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Delete confirm */}
+      {deleteTarget && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+            <div className="px-6 py-5 space-y-3">
+              <h2 className="font-semibold text-gray-800">Delete lead?</h2>
+              <p className="text-sm text-gray-500">
+                This permanently removes the session for{" "}
+                <span className="font-medium text-gray-700">{deleteTarget.name ?? "Anonymous"}</span>{" "}
+                and all its messages. This cannot be undone.
+              </p>
+            </div>
+            <div className="px-6 pb-5 flex justify-end gap-3">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                className="px-4 py-2 text-sm rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                disabled={deleting}
+                className="px-5 py-2 text-sm rounded-lg bg-red-500 text-white font-medium hover:bg-red-600 disabled:opacity-50 transition-colors"
+              >
+                {deleting ? "Deleting…" : "Delete"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
