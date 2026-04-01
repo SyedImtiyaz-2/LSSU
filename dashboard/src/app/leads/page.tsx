@@ -4,6 +4,42 @@ import { api, Lead } from "@/lib/api";
 import { Download, Search } from "lucide-react";
 import { format } from "date-fns";
 
+const ICP_COLORS: Record<string, string> = {
+  "Traditional Prospective Student":        "bg-blue-100 text-blue-800",
+  "Transfer Prospective Student":           "bg-indigo-100 text-indigo-800",
+  "Transfer Back Prospective Student":      "bg-violet-100 text-violet-800",
+  "Canadian Cross Border Student":          "bg-red-100 text-red-800",
+  "Charter School Student":                 "bg-orange-100 text-orange-800",
+  "Indigenous and Anishinaabe Scholar":     "bg-amber-100 text-amber-800",
+  "Cannabis Business & Chemistry Student":  "bg-emerald-100 text-emerald-800",
+  "Fisheries & Wildlife Student":           "bg-green-100 text-green-800",
+  "Fire Science Student":                   "bg-rose-100 text-rose-800",
+  "Nursing Student":                        "bg-pink-100 text-pink-800",
+  "Robotics Engineering Student":           "bg-cyan-100 text-cyan-800",
+  "Collegiate Hockey Athlete (Men's)":      "bg-sky-100 text-sky-800",
+  "Collegiate Hockey Athlete (Women's)":    "bg-purple-100 text-purple-800",
+  "Agent Chatbot":                          "bg-gray-100 text-gray-600",
+};
+
+const SOURCE_MAP: Record<string, { label: string; cls: string }> = {
+  agent:  { label: "Agent App",    cls: "bg-[#003F6B] text-white" },
+  demo:   { label: "Demo Widget",  cls: "bg-gray-100 text-gray-600" },
+  widget: { label: "Widget",       cls: "bg-blue-100 text-blue-700" },
+  direct: { label: "Direct",       cls: "bg-green-100 text-green-700" },
+};
+
+function IcpBadge({ name }: { name: string | null }) {
+  if (!name) return <span className="text-gray-300">—</span>;
+  const cls = ICP_COLORS[name] ?? "bg-gray-100 text-gray-600";
+  return <span className={`inline-block text-xs font-medium px-2 py-0.5 rounded-full ${cls}`}>{name}</span>;
+}
+
+function SourceBadge({ source }: { source: string | null }) {
+  if (!source) return <span className="text-gray-300">—</span>;
+  const s = SOURCE_MAP[source.toLowerCase()] ?? { label: source, cls: "bg-gray-100 text-gray-600" };
+  return <span className={`inline-block text-xs font-medium px-2 py-0.5 rounded-full ${s.cls}`}>{s.label}</span>;
+}
+
 export default function LeadsPage() {
   const [leads, setLeads]   = useState<Lead[]>([]);
   const [query, setQuery]   = useState("");
@@ -82,8 +118,8 @@ export default function LeadsPage() {
                   <td className="px-4 py-3 font-medium">{l.name ?? <span className="text-gray-300">—</span>}</td>
                   <td className="px-4 py-3 text-blue-600">{l.email ?? <span className="text-gray-300">—</span>}</td>
                   <td className="px-4 py-3">{l.phone ?? <span className="text-gray-300">—</span>}</td>
-                  <td className="px-4 py-3 text-gray-500 text-xs">{l.icp_name ?? "—"}</td>
-                  <td className="px-4 py-3 text-gray-400 text-xs">{l.referral_source ?? "—"}</td>
+                  <td className="px-4 py-3"><IcpBadge name={l.icp_name} /></td>
+                  <td className="px-4 py-3"><SourceBadge source={l.referral_source} /></td>
                   <td className="px-4 py-3 text-gray-400 text-xs">
                     {l.created_at ? format(new Date(l.created_at), "MMM d, yyyy") : "—"}
                   </td>

@@ -4,7 +4,43 @@ import { useRouter } from "next/navigation";
 import { api, Session } from "@/lib/api";
 import Badge from "@/components/Badge";
 import { formatDistanceToNow } from "date-fns";
-import { Pencil, Trash2, CheckCircle, AlertCircle, X } from "lucide-react";
+import { Pencil, Trash2, X } from "lucide-react";
+
+const ICP_COLORS: Record<string, string> = {
+  "Traditional Prospective Student":        "bg-blue-100 text-blue-800",
+  "Transfer Prospective Student":           "bg-indigo-100 text-indigo-800",
+  "Transfer Back Prospective Student":      "bg-violet-100 text-violet-800",
+  "Canadian Cross Border Student":          "bg-red-100 text-red-800",
+  "Charter School Student":                 "bg-orange-100 text-orange-800",
+  "Indigenous and Anishinaabe Scholar":     "bg-amber-100 text-amber-800",
+  "Cannabis Business & Chemistry Student":  "bg-emerald-100 text-emerald-800",
+  "Fisheries & Wildlife Student":           "bg-green-100 text-green-800",
+  "Fire Science Student":                   "bg-rose-100 text-rose-800",
+  "Nursing Student":                        "bg-pink-100 text-pink-800",
+  "Robotics Engineering Student":           "bg-cyan-100 text-cyan-800",
+  "Collegiate Hockey Athlete (Men's)":      "bg-sky-100 text-sky-800",
+  "Collegiate Hockey Athlete (Women's)":    "bg-purple-100 text-purple-800",
+  "Agent Chatbot":                          "bg-gray-100 text-gray-600",
+};
+
+const SOURCE_MAP: Record<string, { label: string; cls: string }> = {
+  agent:  { label: "Agent App",   cls: "bg-[#003F6B] text-white" },
+  demo:   { label: "Demo Widget", cls: "bg-gray-100 text-gray-600" },
+  widget: { label: "Widget",      cls: "bg-blue-100 text-blue-700" },
+  direct: { label: "Direct",      cls: "bg-green-100 text-green-700" },
+};
+
+function IcpBadge({ name }: { name: string | null }) {
+  if (!name) return <span className="text-gray-300">—</span>;
+  const cls = ICP_COLORS[name] ?? "bg-gray-100 text-gray-600";
+  return <span className={`inline-block text-xs font-medium px-2 py-0.5 rounded-full ${cls}`}>{name}</span>;
+}
+
+function SourceBadge({ source }: { source: string | null }) {
+  if (!source) return <span className="text-gray-300">—</span>;
+  const s = SOURCE_MAP[source.toLowerCase()] ?? { label: source, cls: "bg-gray-100 text-gray-600" };
+  return <span className={`inline-block text-xs font-medium px-2 py-0.5 rounded-full ${s.cls}`}>{s.label}</span>;
+}
 
 const ICP_OPTIONS = [
   { id: 1,  name: "Traditional" },
@@ -60,13 +96,6 @@ export default function SessionsPage() {
 
   const applyFilters = (icp = icpFilter, res = resolvedFilter, esc = escalatedFilter) =>
     load(icp, res, esc);
-
-  /* ── Quick-toggle resolved / escalated ───────────────────────────────── */
-  const quickToggle = async (s: Session, field: "resolved" | "human_requested", e: React.MouseEvent) => {
-    e.stopPropagation();
-    const updated = await api.updateSession(s.session_id, { [field]: !s[field] });
-    setSessions((prev) => prev.map((x) => x.session_id === s.session_id ? { ...x, ...updated } : x));
-  };
 
   /* ── Open edit modal ─────────────────────────────────────────────────── */
   const openEdit = (s: Session, e: React.MouseEvent) => {
@@ -179,6 +208,7 @@ export default function SessionsPage() {
               <tr>
                 <th className="px-4 py-3 text-left">Student</th>
                 <th className="px-4 py-3 text-left">ICP</th>
+                <th className="px-4 py-3 text-left">Source</th>
                 <th className="px-4 py-3 text-left">Msgs</th>
                 <th className="px-4 py-3 text-left">Status</th>
                 <th className="px-4 py-3 text-left">Started</th>
@@ -196,30 +226,34 @@ export default function SessionsPage() {
                     <div className="font-medium text-gray-800">{s.name ?? <span className="text-gray-400 italic">Anonymous</span>}</div>
                     <div className="text-xs text-gray-600">{s.email ?? s.phone ?? ""}</div>
                   </td>
-                  <td className="px-4 py-3 text-gray-700 text-xs font-medium">{s.icp_name ?? "—"}</td>
+                  <td className="px-4 py-3"><IcpBadge name={s.icp_name} /></td>
+                  <td className="px-4 py-3"><SourceBadge source={s.referral_source} /></td>
                   <td className="px-4 py-3 text-gray-800 font-medium">{s.message_count}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-1.5">
-                      {s.human_requested
-                        ? <Badge label="Escalated" variant="red" />
-                        : s.resolved
-                        ? <Badge label="Resolved" variant="green" />
-                        : <Badge label="Active" variant="blue" />}
-                      <button
-                        title={s.resolved ? "Mark unresolved" : "Mark resolved"}
-                        onClick={(e) => quickToggle(s, "resolved", e)}
-                        className="text-gray-300 hover:text-green-500 transition-colors"
-                      >
-                        <CheckCircle size={14} />
-                      </button>
-                      <button
-                        title={s.human_requested ? "Clear escalation" : "Escalate"}
-                        onClick={(e) => quickToggle(s, "human_requested", e)}
-                        className="text-gray-300 hover:text-red-400 transition-colors"
-                      >
-                        <AlertCircle size={14} />
-                      </button>
-                    </div>
+                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                    <select
+                      value={s.human_requested ? "escalated" : s.resolved ? "resolved" : "active"}
+                      onChange={async (e) => {
+                        const val = e.target.value;
+                        const patch =
+                          val === "escalated" ? { human_requested: true,  resolved: false } :
+                          val === "resolved"  ? { human_requested: false, resolved: true  } :
+                                               { human_requested: false, resolved: false };
+                        const updated = await api.updateSession(s.session_id, patch);
+                        setSessions((prev) => prev.map((x) => x.session_id === s.session_id ? { ...x, ...updated } : x));
+                      }}
+                      className={`text-xs font-semibold rounded-full px-3 py-1 border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-1 appearance-none pr-6 ${
+                        s.human_requested
+                          ? "bg-red-100 text-red-700 focus:ring-red-300"
+                          : s.resolved
+                          ? "bg-green-100 text-green-700 focus:ring-green-300"
+                          : "bg-blue-100 text-blue-700 focus:ring-blue-300"
+                      }`}
+                      style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 6px center" }}
+                    >
+                      <option value="active">Active</option>
+                      <option value="resolved">Resolved</option>
+                      <option value="escalated">Escalated</option>
+                    </select>
                   </td>
                   <td className="px-4 py-3 text-gray-600 text-xs">
                     {s.created_at ? formatDistanceToNow(new Date(s.created_at), { addSuffix: true }) : "—"}
@@ -252,7 +286,7 @@ export default function SessionsPage() {
               ))}
               {sessions.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="text-center text-gray-300 py-12">No sessions found.</td>
+                  <td colSpan={7} className="text-center text-gray-300 py-12">No sessions found.</td>
                 </tr>
               )}
             </tbody>
