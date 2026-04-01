@@ -193,11 +193,11 @@ export default function SessionsPage() {
                   onClick={() => router.push(`/sessions/${s.session_id}`)}
                 >
                   <td className="px-4 py-3">
-                    <div className="font-medium">{s.name ?? <span className="text-gray-300">Anonymous</span>}</div>
-                    <div className="text-xs text-gray-400">{s.email ?? s.phone ?? ""}</div>
+                    <div className="font-medium text-gray-800">{s.name ?? <span className="text-gray-400 italic">Anonymous</span>}</div>
+                    <div className="text-xs text-gray-600">{s.email ?? s.phone ?? ""}</div>
                   </td>
-                  <td className="px-4 py-3 text-gray-500 text-xs">{s.icp_name ?? "—"}</td>
-                  <td className="px-4 py-3">{s.message_count}</td>
+                  <td className="px-4 py-3 text-gray-700 text-xs font-medium">{s.icp_name ?? "—"}</td>
+                  <td className="px-4 py-3 text-gray-800 font-medium">{s.message_count}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1.5">
                       {s.human_requested
@@ -221,7 +221,7 @@ export default function SessionsPage() {
                       </button>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-gray-400 text-xs">
+                  <td className="px-4 py-3 text-gray-600 text-xs">
                     {s.created_at ? formatDistanceToNow(new Date(s.created_at), { addSuffix: true }) : "—"}
                   </td>
                   <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
