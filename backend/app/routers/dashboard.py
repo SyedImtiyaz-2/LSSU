@@ -56,20 +56,24 @@ async def list_sessions(
     return {"sessions": result.data or [], "offset": offset, "limit": limit}
 
 
-@router.get("/leads", summary="All captured leads (name+phone+email)")
+@router.get("/leads", summary="All captured leads (name+phone+email) with score and tags")
 async def list_leads(
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
+    lead_score: Optional[str] = Query(None, description="Filter by score: high|medium|low"),
 ):
-    result = _sb_call(lambda: (
-        get_sb()
-        .table("chat_sessions")
-        .select("session_id, name, phone, email, icp_name, page_slug, referral_source, created_at")
-        .not_.is_("name", "null")
-        .order("created_at", desc=True)
-        .range(offset, offset + limit - 1)
-        .execute()
-    ))
+    def _query():
+        q = (
+            get_sb()
+            .table("chat_sessions")
+            .select("session_id, name, phone, email, icp_name, page_slug, referral_source, lead_score, lead_tags, message_count, created_at")
+            .not_.is_("name", "null")
+        )
+        if lead_score:
+            q = q.eq("lead_score", lead_score)
+        return q.order("created_at", desc=True).range(offset, offset + limit - 1).execute()
+
+    result = _sb_call(_query)
     return {"leads": result.data or [], "offset": offset, "limit": limit}
 
 
@@ -133,6 +137,18 @@ async def delete_session(session_id: str):
         .execute()
     ))
     return {"deleted": session_id}
+
+
+@router.get("/student-type-breakdown", summary="Sessions segmented by student type")
+async def student_type_breakdown():
+    result = _sb_call(lambda: get_sb().table("student_type_breakdown").select("*").execute())
+    return result.data or []
+
+
+@router.get("/program-demand-signals", summary="Demand + gap signals per program")
+async def program_demand_signals():
+    result = _sb_call(lambda: get_sb().table("program_demand_signals").select("*").execute())
+    return result.data or []
 
 
 @router.get("/recent-activity", summary="Last 10 sessions with snippet")

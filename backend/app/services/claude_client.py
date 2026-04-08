@@ -58,9 +58,10 @@ def _icp_name_from_slug(page_slug: str) -> str:
     return icp["name"] if icp else "your program of interest"
 
 
-def build_system_prompt(page_slug: str, icp_id: int | None) -> str:
+def build_system_prompt(page_slug: str, icp_id: int | None, prior_context: dict | None = None) -> str:
     """
     Inject conversation-specific variables into the base system prompt.
+    Optionally include prior session data for returning visitors.
     """
     icp_label = _icp_name_from_slug(page_slug)
     inject = (
@@ -70,6 +71,20 @@ def build_system_prompt(page_slug: str, icp_id: int | None) -> str:
         f"- detected_icp: {icp_label} (id={icp_id})\n"
         f"Use ONLY the knowledge section for this ICP when answering.\n"
     )
+    if prior_context:
+        lines = ["## RETURNING VISITOR — PRIOR SESSION DATA"]
+        if prior_context.get("name"):
+            lines.append(f"- Known name: {prior_context['name']}")
+        if prior_context.get("phone"):
+            lines.append(f"- Phone already captured: {prior_context['phone']} (do NOT ask again)")
+        if prior_context.get("email"):
+            lines.append(f"- Email already captured: {prior_context['email']} (do NOT ask again)")
+        if prior_context.get("icp_name"):
+            lines.append(f"- Previously interested in: {prior_context['icp_name']}")
+        if prior_context.get("chat_summary"):
+            lines.append(f"- Summary of last conversation: {prior_context['chat_summary']}")
+        lines.append("Greet them by name if known, skip re-collecting any data already captured.")
+        inject += "\n" + "\n".join(lines) + "\n"
     return BASE_SYSTEM_PROMPT + inject
 
 
@@ -79,12 +94,13 @@ async def get_claude_reply(
     history: list[ChatMessage],
     user_message: str,
     rag_chunks: list[RAGChunk],
+    prior_context: dict | None = None,
 ) -> str:
     """
     Call Claude with the system prompt, conversation history, and RAG context.
     Returns the assistant's reply text.
     """
-    system = build_system_prompt(page_slug, icp_id)
+    system = build_system_prompt(page_slug, icp_id, prior_context)
 
     # Prefix the user's message with retrieved context
     if rag_chunks:

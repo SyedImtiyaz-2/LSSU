@@ -16,6 +16,23 @@
   const REFERRAL    = script?.getAttribute("data-referral") || "direct";
   const SESSION_ID  = "laker_" + Math.random().toString(36).slice(2) + Date.now();
 
+  // Persistent visitor ID survives page reloads and new sessions
+  function _getVisitorId() {
+    const KEY = "laker_visitor_id";
+    let vid = localStorage.getItem(KEY);
+    if (!vid) {
+      vid = "v_" + Math.random().toString(36).slice(2) + Date.now();
+      localStorage.setItem(KEY, vid);
+    }
+    return vid;
+  }
+  const VISITOR_ID = _getVisitorId();
+
+  // Voice agent phone number (update when provisioned)
+  const VOICE_PHONE    = script?.getAttribute("data-voice-phone")  || "+1 (906) 555-0100";
+  // Calendly / scheduling link for 15-min advisor call
+  const SCHEDULE_URL   = script?.getAttribute("data-schedule-url") || "https://calendly.com/lssu-admissions/15min";
+
   const ICP_LABELS = {
     "icp-traditional-student-1":            "Traditional Student",
     "icp-transfer-student-2":               "Transfer Student",
@@ -131,6 +148,36 @@
     }
     #laker-chat-send:hover { background: #C8992A; }
     #laker-chat-send:disabled { background: #94a3b8; cursor: not-allowed; }
+
+    #laker-voice-banner {
+      background: #002d4d; color: rgba(255,255,255,0.85);
+      font-size: 11px; text-align: center;
+      padding: 5px 12px; letter-spacing: 0.01em;
+    }
+    #laker-voice-banner a {
+      color: #C8992A; font-weight: 600; text-decoration: none;
+    }
+    #laker-voice-banner a:hover { text-decoration: underline; }
+
+    .laker-schedule-card {
+      margin-top: 8px; padding: 10px 12px;
+      background: #f0f9ff; border: 1px solid #bae6fd;
+      border-radius: 10px; font-size: 12px; color: #0369a1;
+    }
+    .laker-schedule-card a {
+      display: inline-block; margin-top: 6px;
+      background: #003F6B; color: #fff; text-decoration: none;
+      padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 600;
+    }
+    .laker-schedule-card a:hover { background: #C8992A; }
+
+    #laker-validation-error {
+      display: none; margin: 0 12px 6px;
+      padding: 6px 10px; border-radius: 8px;
+      background: #fef2f2; color: #dc2626;
+      font-size: 12px; border: 1px solid #fecaca;
+    }
+    #laker-validation-error.show { display: block; }
   `;
 
   // ── DOM ───────────────────────────────────────────────────────────────────
@@ -159,7 +206,11 @@
         </div>
         <button id="laker-chat-close" title="Close">✕</button>
       </div>
+      <div id="laker-voice-banner">
+        📞 Prefer to talk? Call our AI voice agent: <a href="tel:${VOICE_PHONE.replace(/\s/g,'')}">${VOICE_PHONE}</a>
+      </div>
       <div id="laker-chat-messages"></div>
+      <div id="laker-validation-error"></div>
       <div id="laker-chat-input-area">
         <textarea id="laker-chat-input" rows="1" placeholder="Ask Laker anything…"></textarea>
         <button id="laker-chat-send" title="Send">
@@ -188,9 +239,31 @@
     send.addEventListener("click", sendMessage);
 
     // Opening message
-    appendMessage("assistant",
-      `👋 Hi! I'm **Laker**, your LSSU admissions guide.\nIt looks like you're interested in **${PROGRAM}** - you're in the right place!\nWhat questions can I help you with today?`
-    );
+    const greeting = isAfterHours()
+      ? `👋 Hi! I'm **Laker**, your LSSU admissions guide.\n\nOur admissions team is currently offline (Mon–Fri, 8am–5pm ET), but I'm here 24/7 — I can answer most questions right now.\n\nIf you'd prefer to speak with someone, call our AI voice line at **${VOICE_PHONE}** anytime, or leave your info and a recruiter will follow up first thing tomorrow morning.\n\nWhat can I help you with today?`
+      : `👋 Hi! I'm **Laker**, your LSSU admissions guide.\nIt looks like you're interested in **${PROGRAM}** - you're in the right place!\nWhat questions can I help you with today?`;
+    appendMessage("assistant", greeting);
+  }
+
+  // ── After-hours detection ─────────────────────────────────────────────────
+  function isAfterHours() {
+    // LSSU Admissions: Mon–Fri 8am–5pm ET
+    const now = new Date();
+    // Convert to US/Eastern (UTC-5 / UTC-4 during daylight saving)
+    const etOffset = isDaylightSaving(now) ? -4 : -5;
+    const et = new Date(now.getTime() + etOffset * 3600 * 1000);
+    const day = et.getUTCDay();   // 0=Sun, 6=Sat
+    const hour = et.getUTCHours();
+    const isWeekend = day === 0 || day === 6;
+    const isOutsideHours = hour < 8 || hour >= 17;
+    return isWeekend || isOutsideHours;
+  }
+
+  function isDaylightSaving(date) {
+    // Rough DST check: 2nd Sun March – 1st Sun Nov in US
+    const jan = new Date(date.getFullYear(), 0, 1);
+    const jul = new Date(date.getFullYear(), 6, 1);
+    return date.getTimezoneOffset() < Math.max(jan.getTimezoneOffset(), jul.getTimezoneOffset());
   }
 
   // ── State ─────────────────────────────────────────────────────────────────
@@ -238,12 +311,69 @@
     document.getElementById("laker-typing")?.remove();
   }
 
+  // ── Validation ────────────────────────────────────────────────────────────
+  function showValidationError(msg) {
+    const el = document.getElementById("laker-validation-error");
+    if (!el) return;
+    el.textContent = msg;
+    el.classList.add("show");
+    setTimeout(() => el.classList.remove("show"), 4000);
+  }
+
+  function clearValidationError() {
+    const el = document.getElementById("laker-validation-error");
+    if (el) el.classList.remove("show");
+  }
+
+  // Returns true if text is primarily a phone number attempt (4+ digits, little else)
+  function looksLikePhone(text) {
+    const stripped = text.replace(/[\s\-\(\)\+\.]/g, "");
+    return /^\d{4,15}$/.test(stripped);
+  }
+
+  // Returns true if text looks like an email attempt
+  function looksLikeEmail(text) {
+    return text.includes("@");
+  }
+
+  function isValidPhone(text) {
+    const digits = text.replace(/\D/g, "");
+    return digits.length === 10 || (digits.length === 11 && digits[0] === "1");
+  }
+
+  function isValidEmail(text) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(text.trim());
+  }
+
+  // Validate contact info if the message looks like one; returns null if OK, error string if not
+  function validateContactInput(text) {
+    const trimmed = text.trim();
+    if (looksLikePhone(trimmed)) {
+      if (!isValidPhone(trimmed)) {
+        return "Please enter a valid 10-digit US phone number (e.g. 906-555-1234).";
+      }
+    }
+    if (looksLikeEmail(trimmed)) {
+      if (!isValidEmail(trimmed)) {
+        return "That email doesn't look right. Please check the format (e.g. you@example.com).";
+      }
+    }
+    return null;
+  }
+
   // ── API call ──────────────────────────────────────────────────────────────
   async function sendMessage() {
     const input = document.getElementById("laker-chat-input");
     const send  = document.getElementById("laker-chat-send");
     const text  = (input.value || "").trim();
     if (!text) return;
+
+    const validationErr = validateContactInput(text);
+    if (validationErr) {
+      showValidationError(validationErr);
+      return;
+    }
+    clearValidationError();
 
     input.value = "";
     input.style.height = "auto";
@@ -260,6 +390,7 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           session_id: SESSION_ID,
+          visitor_id: VISITOR_ID,
           page_slug: PAGE_SLUG,
           message: text,
           history: history.slice(-10),   // last 10 turns
@@ -272,7 +403,17 @@
       removeTyping();
 
       const reply = data.reply || "I'm having trouble connecting right now. Please try again in a moment.";
-      appendMessage("assistant", reply);
+      const msgEl = appendMessage("assistant", reply);
+
+      // If the backend flagged a human handoff, show the scheduling card
+      if (data.human_handoff) {
+        const card = document.createElement("div");
+        card.className = "laker-schedule-card";
+        card.innerHTML = `📅 Want to talk to an advisor directly?<br>
+          <a href="${SCHEDULE_URL}" target="_blank" rel="noopener">Book a free 15-min call</a>`;
+        msgEl.querySelector(".laker-bubble")?.appendChild(card);
+      }
+
       history.push({ role: "assistant", content: reply });
 
     } catch (err) {

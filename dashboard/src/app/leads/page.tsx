@@ -40,16 +40,36 @@ function SourceBadge({ source }: { source: string | null }) {
   return <span className={`inline-block text-xs font-medium px-2 py-0.5 rounded-full ${s.cls}`}>{s.label}</span>;
 }
 
+const SCORE_STYLE: Record<string, string> = {
+  high:   "bg-green-100 text-green-800",
+  medium: "bg-amber-100 text-amber-800",
+  low:    "bg-gray-100 text-gray-500",
+};
+
+function ScoreBadge({ score }: { score: string | null }) {
+  if (!score) return <span className="text-gray-300">—</span>;
+  const cls = SCORE_STYLE[score] ?? "bg-gray-100 text-gray-500";
+  return (
+    <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full capitalize ${cls}`}>
+      {score}
+    </span>
+  );
+}
+
 export default function LeadsPage() {
   const [leads, setLeads]       = useState<Lead[]>([]);
   const [query, setQuery]       = useState("");
+  const [scoreFilter, setScoreFilter] = useState("");
   const [loading, setLoading]   = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<Lead | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
-    api.leads().then((r) => setLeads(r.leads)).finally(() => setLoading(false));
-  }, []);
+    setLoading(true);
+    api.leads(0, 200, scoreFilter || undefined)
+      .then((r) => setLeads(r.leads))
+      .finally(() => setLoading(false));
+  }, [scoreFilter]);
 
   const confirmDelete = async () => {
     if (!deleteTarget) return;
@@ -74,9 +94,9 @@ export default function LeadsPage() {
   });
 
   const exportCSV = () => {
-    const header = "Name,Email,Phone,ICP,Source,Date";
+    const header = "Name,Email,Phone,ICP,Source,Score,Messages,Date";
     const rows = filtered.map((l) =>
-      [l.name, l.email, l.phone, l.icp_name, l.referral_source, l.created_at]
+      [l.name, l.email, l.phone, l.icp_name, l.referral_source, l.lead_score, l.message_count, l.created_at]
         .map((v) => `"${v ?? ""}"`)
         .join(",")
     );
@@ -99,16 +119,28 @@ export default function LeadsPage() {
         </button>
       </div>
 
-      {/* Search */}
-      <div className="relative">
-        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-        <input
-          type="text"
-          placeholder="Search by name, email, phone, or ICP…"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#003F6B]/30"
-        />
+      {/* Search + Score filter */}
+      <div className="flex gap-3">
+        <div className="relative flex-1">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search by name, email, phone, or ICP…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#003F6B]/30"
+          />
+        </div>
+        <select
+          value={scoreFilter}
+          onChange={(e) => setScoreFilter(e.target.value)}
+          className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#003F6B]/30 bg-white"
+        >
+          <option value="">All scores</option>
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
+        </select>
       </div>
 
       {loading ? (
@@ -123,6 +155,8 @@ export default function LeadsPage() {
                 <th className="px-4 py-3 text-left">Phone</th>
                 <th className="px-4 py-3 text-left">ICP</th>
                 <th className="px-4 py-3 text-left">Source</th>
+                <th className="px-4 py-3 text-left">Score</th>
+                <th className="px-4 py-3 text-left">Msgs</th>
                 <th className="px-4 py-3 text-left">Date</th>
                 <th className="px-4 py-3 text-left"></th>
               </tr>
@@ -135,6 +169,8 @@ export default function LeadsPage() {
                   <td className="px-4 py-3">{l.phone ?? <span className="text-gray-300">—</span>}</td>
                   <td className="px-4 py-3"><IcpBadge name={l.icp_name} /></td>
                   <td className="px-4 py-3"><SourceBadge source={l.referral_source} /></td>
+                  <td className="px-4 py-3"><ScoreBadge score={l.lead_score} /></td>
+                  <td className="px-4 py-3 text-gray-500 text-xs">{l.message_count ?? "—"}</td>
                   <td className="px-4 py-3 text-gray-400 text-xs">
                     {l.created_at ? format(new Date(l.created_at), "MMM d, yyyy") : "—"}
                   </td>
@@ -151,7 +187,7 @@ export default function LeadsPage() {
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="text-center text-gray-300 py-12">
+                  <td colSpan={9} className="text-center text-gray-300 py-12">
                     {query ? "No leads match your search." : "No leads captured yet."}
                   </td>
                 </tr>

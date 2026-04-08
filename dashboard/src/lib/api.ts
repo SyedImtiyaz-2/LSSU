@@ -56,7 +56,31 @@ export interface Lead {
   icp_name: string | null;
   page_slug: string | null;
   referral_source: string | null;
+  lead_score: "high" | "medium" | "low" | null;
+  lead_tags: string[] | null;
+  message_count: number;
   created_at: string | null;
+}
+
+export interface StudentTypeBreakdown {
+  student_type: string;
+  total_sessions: number;
+  leads_captured: number;
+  resolved_sessions: number;
+  resolution_rate_pct: number | null;
+  avg_messages: number | null;
+}
+
+export interface ProgramDemandSignal {
+  icp_id: number | null;
+  program: string;
+  total_sessions: number;
+  escalations: number;
+  unresolved_questions: number;
+  escalation_rate_pct: number | null;
+  resolution_rate_pct: number | null;
+  high_intent_leads: number;
+  medium_intent_leads: number;
 }
 
 export interface Message {
@@ -83,8 +107,15 @@ export const api = {
     if (params?.offset) q.set("offset", String(params.offset));
     return fetchJSON<{ sessions: Session[]; offset: number; limit: number }>(`/dashboard/sessions?${q}`);
   },
-  leads: (offset = 0, limit = 100) =>
-    fetchJSON<{ leads: Lead[] }>(`/dashboard/leads?offset=${offset}&limit=${limit}`),
+  leads: (offset = 0, limit = 100, lead_score?: string) => {
+    const q = new URLSearchParams({ offset: String(offset), limit: String(limit) });
+    if (lead_score) q.set("lead_score", lead_score);
+    return fetchJSON<{ leads: Lead[] }>(`/dashboard/leads?${q}`);
+  },
+  studentTypeBreakdown: () =>
+    fetchJSON<StudentTypeBreakdown[]>("/dashboard/student-type-breakdown"),
+  programDemandSignals: () =>
+    fetchJSON<ProgramDemandSignal[]>("/dashboard/program-demand-signals"),
   sessionMessages: (id: string) =>
     fetchJSON<{ session: Session; messages: Message[] }>(`/dashboard/sessions/${id}/messages`),
   updateSession: (id: string, patch: Partial<Pick<Session, "resolved" | "human_requested" | "name" | "email" | "phone" | "chat_summary">>) =>

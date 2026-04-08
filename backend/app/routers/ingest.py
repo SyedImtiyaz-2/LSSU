@@ -18,6 +18,8 @@ async def _store_chunks(
     icp_name: str,
     source: str,
     text: str,
+    priority: int = 5,
+    doc_type: str = "general",
 ) -> int:
     chunks = chunk_text(text)
     if not chunks:
@@ -33,6 +35,8 @@ async def _store_chunks(
             "embedding": emb,
             "source": source,
             "chunk_index": idx,
+            "priority": priority,
+            "doc_type": doc_type,
         }
         for idx, (chunk, emb) in enumerate(zip(chunks, embeddings))
     ]
@@ -44,7 +48,7 @@ async def _store_chunks(
 @router.post("", response_model=IngestResponse)
 async def ingest_text(req: IngestRequest):
     """Ingest raw text for a given ICP."""
-    stored = await _store_chunks(req.icp_id, req.icp_name, req.source, req.text)
+    stored = await _store_chunks(req.icp_id, req.icp_name, req.source, req.text, req.priority, req.doc_type)
     return IngestResponse(
         chunks_stored=stored,
         icp_id=req.icp_id,
@@ -59,6 +63,8 @@ async def ingest_file(
     icp_id: int = Form(...),
     icp_name: str = Form(...),
     source: str = Form("uploaded_file"),
+    priority: int = Form(default=5),
+    doc_type: str = Form(default="general"),
 ):
     """Upload a .docx or .txt file and ingest its text."""
     content = await file.read()
@@ -76,7 +82,7 @@ async def ingest_file(
     else:
         raise HTTPException(status_code=400, detail="Only .docx, .txt, and .md files are supported.")
 
-    stored = await _store_chunks(icp_id, icp_name, source or filename, text)
+    stored = await _store_chunks(icp_id, icp_name, source or filename, text, priority, doc_type)
     return IngestResponse(
         chunks_stored=stored,
         icp_id=icp_id,

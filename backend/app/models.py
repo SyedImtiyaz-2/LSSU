@@ -1,4 +1,5 @@
-from pydantic import BaseModel, Field
+import re
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List, Any
 from datetime import datetime
 
@@ -10,6 +11,8 @@ class IngestRequest(BaseModel):
     icp_name: str = Field(..., description="ICP label, e.g. 'Nursing Student'")
     source: str   = Field(..., description="Document label, e.g. 'ICP_report'")
     text: str     = Field(..., description="Raw document text to chunk + embed")
+    priority: int = Field(default=5, ge=1, le=10, description="Chunk precedence 1=highest 10=lowest")
+    doc_type: str = Field(default="general", description="official|brochure|sop|faq|auto-faq|email|general")
 
 
 class IngestResponse(BaseModel):
@@ -28,6 +31,7 @@ class ChatMessage(BaseModel):
 
 class ChatRequest(BaseModel):
     session_id: str   = Field(..., description="Unique conversation ID")
+    visitor_id: Optional[str] = Field(None, description="Persistent browser visitor ID for cross-session memory")
     page_slug: str    = Field(..., description="Landing page slug for ICP detection")
     message: str      = Field(..., description="Student's current message")
     history: List[ChatMessage] = Field(default=[], description="Prior messages in this session")
@@ -61,6 +65,25 @@ class LeadUpdate(BaseModel):
     human_requested: Optional[bool] = None
     unresolved_query: Optional[str] = None
     chat_summary: Optional[str] = None
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, v):
+        if v is None:
+            return v
+        digits = re.sub(r"\D", "", v)
+        if not (len(digits) == 10 or (len(digits) == 11 and digits[0] == "1")):
+            raise ValueError("Phone must be a 10-digit US number.")
+        return digits[-10:]  # normalise to 10 digits
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, v):
+        if v is None:
+            return v
+        if not re.match(r"^[^\s@]+@[^\s@]+\.[^\s@]{2,}$", v.strip()):
+            raise ValueError("Invalid email format.")
+        return v.strip().lower()
 
 
 class SessionRecord(BaseModel):
